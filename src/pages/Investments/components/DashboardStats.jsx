@@ -3,7 +3,9 @@ import {
   FundOutlined, DollarOutlined, RiseOutlined,
   FallOutlined, TrophyOutlined, StockOutlined,
 } from '@ant-design/icons'
-import { formatMoney, plColor, formatPct } from '../constants'
+import { formatPct } from '../constants'
+
+const fmt = (v) => Number(v || 0).toFixed(2)
 
 const gradientStyle = (c1, c2) => ({
   background: `linear-gradient(135deg, ${c1}, ${c2})`,
@@ -19,33 +21,33 @@ export default function DashboardStats({ dashboard, loading }) {
   const stats = [
     {
       title: '总市值',
-      value: formatMoney(dashboard.total_market_value),
+      value: fmt(dashboard.total_market_value),
       icon: <FundOutlined />,
       style: gradientStyle('#1677ff', '#4096ff'),
     },
     {
       title: '总成本',
-      value: formatMoney(dashboard.total_cost),
+      value: fmt(dashboard.total_cost),
       icon: <DollarOutlined />,
       style: gradientStyle('#722ed1', '#9254de'),
     },
     {
       title: '总盈亏',
-      value: `${pl >= 0 ? '+' : ''}${formatMoney(pl)}`,
+      value: `${pl >= 0 ? '+' : ''}${fmt(pl)}`,
       subValue: formatPct(dashboard.total_profit_loss_pct),
       icon: pl >= 0 ? <RiseOutlined /> : <FallOutlined />,
       style: gradientStyle(pl >= 0 ? '#f5222d' : '#52c41a', pl >= 0 ? '#ff7875' : '#95de64'),
     },
     {
       title: '今日盈亏',
-      value: `${dailyPl >= 0 ? '+' : ''}${formatMoney(dailyPl)}`,
+      value: `${dailyPl >= 0 ? '+' : ''}${fmt(dailyPl)}`,
       subValue: formatPct(dashboard.total_daily_pl_pct),
       icon: <StockOutlined />,
       style: gradientStyle(dailyPl >= 0 ? '#fa541c' : '#13c2c2', dailyPl >= 0 ? '#ff7a45' : '#36cfc9'),
     },
     {
       title: '累计分红',
-      value: formatMoney(dashboard.total_dividend_income),
+      value: fmt(dashboard.total_dividend_income),
       icon: <TrophyOutlined />,
       style: gradientStyle('#faad14', '#ffc53d'),
     },

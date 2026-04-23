@@ -1,12 +1,31 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Modal, Form, Input, Select, InputNumber, DatePicker, AutoComplete, Space, Typography } from 'antd'
 import dayjs from 'dayjs'
-import { TRANSACTION_TYPES } from '../constants'
+import { TRANSACTION_TYPES, FEE_RATES } from '../constants'
 import { searchSecurity } from '../../../api/finance'
 
 const { Text } = Typography
 
 const TRADE_TYPES = ['buy', 'sell', 'dividend', 'interest', 'deposit', 'withdraw', 'fee']
+
+// 按券商标准费率自动计算买入手续费
+function calcBuyFees(qty, price) {
+  if (!qty || !price || qty <= 0 || price <= 0) return 0
+  const amount = qty * price
+  const commission = Math.max(amount * FEE_RATES.commission_rate, FEE_RATES.commission_min)
+  const transferFee = amount * FEE_RATES.transfer_fee_rate
+  return Math.round((commission + transferFee) * 100) / 100
+}
+
+// 按券商标准费率自动计算卖出手续费
+function calcSellFees(qty, price) {
+  if (!qty || !price || qty <= 0 || price <= 0) return 0
+  const amount = qty * price
+  const commission = Math.max(amount * FEE_RATES.commission_rate, FEE_RATES.commission_min)
+  const stampDuty = amount * FEE_RATES.stamp_duty_rate
+  const transferFee = amount * FEE_RATES.transfer_fee_rate
+  return Math.round((commission + stampDuty + transferFee) * 100) / 100
+}
 
 export default function TradeModal({ open, onCancel, onOk, accounts, holdings, loading }) {
   const [form] = Form.useForm()
@@ -15,7 +34,6 @@ export default function TradeModal({ open, onCancel, onOk, accounts, holdings, l
   const selectedHolding = Form.useWatch('holding', form)
   const watchQuantity = Form.useWatch('quantity', form)
   const watchPrice = Form.useWatch('price', form)
-  const watchFeeRate = Form.useWatch('fee_rate', form)
 
   const [searchOptions, setSearchOptions] = useState([])
   const [searching, setSearching] = useState(false)
@@ -24,6 +42,7 @@ export default function TradeModal({ open, onCancel, onOk, accounts, holdings, l
   const needSymbolFields = !['deposit', 'withdraw', 'fee'].includes(transType)
   const needPriceFields = ['buy', 'sell'].includes(transType)
   const isSell = transType === 'sell'
+  const isBuy = transType === 'buy'
   const filteredHoldings = selectedAccount
     ? holdings.filter(h => h.investment_account === selectedAccount)
     : holdings
@@ -67,17 +86,16 @@ export default function TradeModal({ open, onCancel, onOk, accounts, holdings, l
     }
   }
 
-  // 自动计算手续费
+  // 自动计算手续费（按标准费率）
   useEffect(() => {
     if (!needPriceFields) return
     const qty = Number(watchQuantity) || 0
     const price = Number(watchPrice) || 0
-    const rate = Number(watchFeeRate) || 0
-    if (qty > 0 && price > 0 && rate > 0) {
-      const fee = qty * price * rate / 100
-      form.setFieldsValue({ fee: Math.round(fee * 100) / 100 })
+    if (qty > 0 && price > 0) {
+      const fee = isSell ? calcSellFees(qty, price) : calcBuyFees(qty, price)
+      form.setFieldsValue({ fee })
     }
-  }, [watchQuantity, watchPrice, watchFeeRate, needPriceFields, form])
+  }, [watchQuantity, watchPrice, needPriceFields, isSell, isBuy, form])
 
   // 卖出时自动计算盈亏
   useEffect(() => {
@@ -100,8 +118,6 @@ export default function TradeModal({ open, onCancel, onOk, accounts, holdings, l
       if (['buy', 'sell'].includes(values.transaction_type) && values.quantity && values.price) {
         values.amount = Number(values.quantity) * Number(values.price)
       }
-      // 删除 fee_rate（不存后端）
-      delete values.fee_rate
       onOk(values)
       form.resetFields()
     } catch {}
@@ -117,7 +133,7 @@ export default function TradeModal({ open, onCancel, onOk, accounts, holdings, l
       width={520}
       destroyOnClose
     >
-      <Form form={form} layout="vertical" initialValues={{ transaction_type: 'buy', date: dayjs(), fee: 0, fee_rate: 0 }}>
+      <Form form={form} layout="vertical" initialValues={{ transaction_type: 'buy', date: dayjs(), fee: 0, profit_loss: 0 }}>
         <Form.Item name="investment_account" label="投资账户" rules={[{ required: true, message: '请选择账户' }]}>
           <Select placeholder="选择账户">
             {accounts.map(a => (
@@ -173,16 +189,17 @@ export default function TradeModal({ open, onCancel, onOk, accounts, holdings, l
           </Form.Item>
         )}
         {needPriceFields && (
-          <Form.Item name="fee_rate" label="手续费率 (%)">
-            <InputNumber style={{ width: '100%' }} min={0} precision={4} placeholder="如 0.025 表示 0.025%" />
+          <Form.Item name="fee" label="手续费（按标准费率自动计算，可修改）"
+            extra={isSell ? '佣金万2.5(最低5元) + 印花税0.05% + 过户费0.001%' : '佣金万2.5(最低5元) + 过户费0.001%'}
+          >
+            <InputNumber style={{ width: '100%' }} min={0} precision={2} />
           </Form.Item>
         )}
-        <Form.Item name="fee" label="手续费（自动计算，可手动修改）">
-          <InputNumber style={{ width: '100%' }} min={0} precision={2} />
-        </Form.Item>
-        <Form.Item name="profit_loss" label="盈亏金额">
-          <InputNumber style={{ width: '100%' }} precision={2} />
-        </Form.Item>
+        {isSell && (
+          <Form.Item name="profit_loss" label="盈亏金额（自动计算）">
+            <InputNumber style={{ width: '100%' }} precision={2} />
+          </Form.Item>
+        )}
         <Form.Item name="date" label="交易日期" rules={[{ required: true, message: '请选择日期' }]}>
           <DatePicker style={{ width: '100%' }} />
         </Form.Item>

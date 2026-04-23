@@ -52,13 +52,14 @@ export default function AccountCards({ accounts, onAddAccount, onEditAccount, on
                 </div>
               )}
               <div style={{ marginTop: 8, color: '#1677ff', fontWeight: 600 }}>
-                余额: {Number(acc.balance).toFixed(2)}
+                总资产: {Number(acc.total_assets).toFixed(2)}
               </div>
-              {acc.total_market_value > 0 && (
-                <div style={{ color: '#8c8c8c', fontSize: 12, marginTop: 2 }}>
-                  持仓市值: {Number(acc.total_market_value).toFixed(2)}
-                </div>
-              )}
+              <div style={{ color: '#8c8c8c', fontSize: 12, marginTop: 2, display: 'flex', justifyContent: 'space-between' }}>
+                <span>余额: {Number(acc.balance).toFixed(2)}</span>
+                {Number(acc.total_market_value) > 0 && (
+                  <span>市值: {Number(acc.total_market_value).toFixed(2)}</span>
+                )}
+              </div>
             </Card>
           </Col>
         ))}

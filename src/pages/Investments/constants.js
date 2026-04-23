@@ -63,3 +63,28 @@ export function formatPct(value) {
   if (value === null || value === undefined) return '0.00%'
   return `${Number(value).toFixed(2)}%`
 }
+
+// 券商标准费率
+export const FEE_RATES = {
+  commission_rate: 0.00025,   // 0.025% (万2.5)
+  commission_min: 5,          // 最低 5 元
+  stamp_duty_rate: 0.0005,    // 0.05% 卖出印花税
+  transfer_fee_rate: 0.00001, // 0.001% 过户费
+}
+
+// 计算卖出预估费用
+export function calculateSellFees(price, quantity) {
+  const amount = Number(price) * Number(quantity)
+  const commission = Math.max(amount * FEE_RATES.commission_rate, FEE_RATES.commission_min)
+  const stamp_duty = amount * FEE_RATES.stamp_duty_rate
+  const transfer_fee = amount * FEE_RATES.transfer_fee_rate
+  const total = commission + stamp_duty + transfer_fee
+  return {
+    trade_amount: amount,
+    commission: commission.toFixed(2),
+    stamp_duty: stamp_duty.toFixed(2),
+    transfer_fee: transfer_fee.toFixed(2),
+    total_fees: total.toFixed(2),
+    net_proceeds: (amount - total).toFixed(2),
+  }
+}

@@ -35,6 +35,8 @@ export const createHolding = (data) => request.post('/holdings/', data)
 export const updateHolding = (id, data) => request.patch(`/holdings/${id}/`, data)
 export const getInvestDashboard = () => request.get('/holdings/dashboard/')
 export const batchUpdatePrices = (data) => request.post('/holdings/batch_update_prices/', data)
+export const autoUpdatePrices = () => request.post('/holdings/auto-update-prices/')
+export const getDailySnapshots = (params) => request.get('/holdings/daily-snapshots/', { params })
 
 export const getInvestTransactions = (params) => request.get('/invest-trans/', { params })
 export const createInvestTransaction = (data) => request.post('/invest-trans/', data)

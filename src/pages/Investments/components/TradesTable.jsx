@@ -1,5 +1,7 @@
 import { Table, Tag } from 'antd'
-import { TRANSACTION_TYPES, formatMoney } from '../constants'
+import { TRANSACTION_TYPES } from '../constants'
+
+const fmt = (v) => Number(v || 0).toFixed(2)
 
 export default function TradesTable({ transactions, loading }) {
   const columns = [
@@ -22,20 +24,20 @@ export default function TradesTable({ transactions, loading }) {
       render: (v) => Number(v).toFixed(4),
     },
     {
-      title: '金额', dataIndex: 'amount', width: 100, align: 'right',
-      render: (v) => formatMoney(v),
+      title: '金额', dataIndex: 'amount', width: 110, align: 'right',
+      render: (v) => fmt(v),
     },
     {
-      title: '手续费', dataIndex: 'fee', width: 80, align: 'right',
-      render: (v) => Number(v || 0).toFixed(2),
+      title: '手续费', dataIndex: 'fee', width: 90, align: 'right',
+      render: (v) => fmt(v),
     },
     {
-      title: '盈亏', dataIndex: 'profit_loss', width: 100, align: 'right',
+      title: '盈亏', dataIndex: 'profit_loss', width: 110, align: 'right',
       render: (v) => {
         const n = Number(v || 0)
         if (n === 0) return '-'
         const color = n > 0 ? '#f5222d' : '#52c41a'
-        return <span style={{ color, fontWeight: 600 }}>{n >= 0 ? '+' : ''}{formatMoney(n)}</span>
+        return <span style={{ color, fontWeight: 600 }}>{n >= 0 ? '+' : ''}{fmt(n)}</span>
       },
     },
     { title: '账户', dataIndex: 'account_name', width: 100 },

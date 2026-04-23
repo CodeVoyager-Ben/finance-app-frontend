@@ -1,7 +1,9 @@
-import { Table, Tag, Button } from 'antd'
-import { plColor, formatMoney, formatPct } from '../constants'
+import { Table, Tag, Button, Space } from 'antd'
+import { plColor, formatPct } from '../constants'
 
-export default function HoldingsTable({ holdings, loading, onViewDetail }) {
+const fmt = (v) => Number(v || 0).toFixed(2)
+
+export default function HoldingsTable({ holdings, loading, onViewDetail, onSell }) {
   const columns = [
     {
       title: '代码', dataIndex: 'symbol', width: 90, fixed: 'left',
@@ -29,27 +31,27 @@ export default function HoldingsTable({ holdings, loading, onViewDetail }) {
       render: (v) => Number(v).toFixed(4),
     },
     {
-      title: '市值', dataIndex: 'market_value', width: 110, align: 'right',
-      render: (v) => formatMoney(v),
+      title: '市值', dataIndex: 'market_value', width: 120, align: 'right',
+      render: (v) => fmt(v),
     },
     {
-      title: '日盈亏', width: 110, align: 'right',
+      title: '日盈亏', width: 120, align: 'right',
       render: (_, r) => {
         const v = Number(r.daily_profit_loss || 0)
         return (
           <span style={{ color: plColor(v), fontWeight: 600 }}>
-            {v >= 0 ? '+' : ''}{formatMoney(v)}
+            {v >= 0 ? '+' : ''}{fmt(v)}
           </span>
         )
       },
     },
     {
-      title: '总盈亏', width: 130, align: 'right',
+      title: '总盈亏', width: 140, align: 'right',
       render: (_, r) => {
         const v = Number(r.profit_loss || 0)
         return (
           <span style={{ color: plColor(v), fontWeight: 600 }}>
-            {v >= 0 ? '+' : ''}{formatMoney(v)}
+            {v >= 0 ? '+' : ''}{fmt(v)}
             <span style={{ fontSize: 11, marginLeft: 4 }}>({formatPct(r.profit_loss_pct)})</span>
           </span>
         )
@@ -72,8 +74,15 @@ export default function HoldingsTable({ holdings, loading, onViewDetail }) {
       render: (v) => v !== 'CNY' ? <Tag color="default">{v}</Tag> : '',
     },
     {
-      title: '操作', width: 60, fixed: 'right', align: 'center',
-      render: (_, r) => <Button type="link" size="small" onClick={() => onViewDetail?.(r)}>详情</Button>,
+      title: '操作', width: 110, fixed: 'right', align: 'center',
+      render: (_, r) => (
+        <Space size={4}>
+          <Button type="link" size="small" onClick={() => onViewDetail?.(r)}>详情</Button>
+          {Number(r.quantity) > 0 && (
+            <Button type="link" size="small" danger onClick={() => onSell?.(r)}>卖出</Button>
+          )}
+        </Space>
+      ),
     },
   ]
 
@@ -83,7 +92,7 @@ export default function HoldingsTable({ holdings, loading, onViewDetail }) {
       columns={columns}
       rowKey="id"
       loading={loading}
-      scroll={{ x: 1400 }}
+      scroll={{ x: 1500 }}
       size="small"
       pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
     />

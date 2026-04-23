@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Card, Button, Tabs, Space, Table, Tag, message } from 'antd'
-import { FundOutlined, PlusOutlined, DollarOutlined, EditOutlined } from '@ant-design/icons'
+import { FundOutlined, PlusOutlined, DollarOutlined, EditOutlined, SyncOutlined } from '@ant-design/icons'
 import useInvestmentData from './hooks/useInvestmentData'
 import DashboardStats from './components/DashboardStats'
 import AccountCards from './components/AccountCards'
@@ -12,10 +12,13 @@ import AccountModal from './components/AccountModal'
 import TradeModal from './components/TradeModal'
 import DividendModal from './components/DividendModal'
 import PriceUpdateModal from './components/PriceUpdateModal'
-import { DIVIDEND_TYPES, formatMoney } from './constants'
+import SellModal from './components/SellModal'
+import { DIVIDEND_TYPES } from './constants'
+
+const fmt = (v) => Number(v || 0).toFixed(2)
 import {
   createInvestmentAccount, updateInvestmentAccount, deleteInvestmentAccount,
-  createInvestTransaction, batchUpdatePrices, createDividendRecord,
+  createInvestTransaction, batchUpdatePrices, autoUpdatePrices, createDividendRecord,
   getAccounts,
 } from '../../api/finance'
 
@@ -30,7 +33,9 @@ export default function Investments() {
   const [dividendModal, setDividendModal] = useState(false)
   const [priceModal, setPriceModal] = useState(false)
   const [detailHolding, setDetailHolding] = useState(null)
+  const [sellHolding, setSellHolding] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [autoUpdating, setAutoUpdating] = useState(false)
   const [editingAccount, setEditingAccount] = useState(null)
   const [fundAccounts, setFundAccounts] = useState([])
 
@@ -82,6 +87,38 @@ export default function Investments() {
       message.error(err.response?.data?.detail || '记录失败')
     } finally {
       setSaving(false)
+    }
+  }
+
+  // ── 卖出持仓 ──
+  const handleSell = async (values) => {
+    setSaving(true)
+    try {
+      await createInvestTransaction(values)
+      message.success('卖出成功')
+      setSellHolding(null)
+      loadData()
+    } catch (err) {
+      message.error(err.response?.data?.detail || '卖出失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ── 自动更新价格 ──
+  const handleAutoUpdatePrices = async () => {
+    setAutoUpdating(true)
+    try {
+      const res = await autoUpdatePrices()
+      message.success(res.detail || '价格更新成功')
+      if (res.failed_symbols?.length > 0) {
+        message.warning(`${res.failed_symbols.length} 个持仓价格获取失败: ${res.failed_symbols.join(', ')}`)
+      }
+      loadData()
+    } catch (err) {
+      message.error(err.response?.data?.detail || '自动更新失败')
+    } finally {
+      setAutoUpdating(false)
     }
   }
 
@@ -137,7 +174,7 @@ export default function Investments() {
     },
     {
       title: '总金额', dataIndex: 'total_amount', width: 100, align: 'right',
-      render: (v) => formatMoney(v),
+      render: (v) => fmt(v),
     },
     {
       title: '扣税', dataIndex: 'tax', width: 80, align: 'right',
@@ -145,7 +182,7 @@ export default function Investments() {
     },
     {
       title: '税后净额', dataIndex: 'net_amount', width: 100, align: 'right',
-      render: (v) => <span style={{ fontWeight: 600 }}>{formatMoney(v)}</span>,
+      render: (v) => <span style={{ fontWeight: 600 }}>{fmt(v)}</span>,
     },
     { title: '账户', dataIndex: 'account_name', width: 100 },
     { title: '备注', dataIndex: 'note', width: 120, ellipsis: true },
@@ -166,9 +203,9 @@ export default function Investments() {
             pagination={false}
             columns={[
               { title: '类型', dataIndex: 'asset_type_name', render: (v, r) => <Tag color={r.asset_type_color}>{v}</Tag> },
-              { title: '市值', dataIndex: 'market_value', align: 'right', render: (v) => formatMoney(v) },
-              { title: '成本', dataIndex: 'cost_value', align: 'right', render: (v) => formatMoney(v) },
-              { title: '盈亏', dataIndex: 'profit_loss', align: 'right', render: (v) => <span style={{ color: v > 0 ? '#f5222d' : '#52c41a' }}>{formatMoney(v)}</span> },
+              { title: '市值', dataIndex: 'market_value', align: 'right', render: (v) => fmt(v) },
+              { title: '成本', dataIndex: 'cost_value', align: 'right', render: (v) => fmt(v) },
+              { title: '盈亏', dataIndex: 'profit_loss', align: 'right', render: (v) => <span style={{ color: v > 0 ? '#f5222d' : '#52c41a' }}>{fmt(v)}</span> },
               { title: '占比', dataIndex: 'weight_pct', align: 'right', render: (v) => `${Number(v).toFixed(1)}%` },
             ]}
           />
@@ -182,7 +219,7 @@ export default function Investments() {
             columns={[
               { title: '币种', dataIndex: 'currency' },
               { title: '原币市值', dataIndex: 'market_value', align: 'right', render: (v) => Number(v).toFixed(2) },
-              { title: '人民币市值', dataIndex: 'market_value_cny', align: 'right', render: (v) => formatMoney(v) },
+              { title: '人民币市值', dataIndex: 'market_value_cny', align: 'right', render: (v) => fmt(v) },
               { title: '汇率', dataIndex: 'exchange_rate', align: 'right', render: (v) => Number(v).toFixed(4) },
             ]}
           />
@@ -221,6 +258,7 @@ export default function Investments() {
           holdings={holdings}
           loading={loading}
           onViewDetail={(h) => setDetailHolding(h)}
+          onSell={(h) => setSellHolding(h)}
         />
       ),
     },
@@ -260,7 +298,8 @@ export default function Investments() {
         </span>
         <Space>
           <Button icon={<DollarOutlined />} onClick={() => setDividendModal(true)}>记录分红</Button>
-          <Button icon={<EditOutlined />} onClick={() => setPriceModal(true)}>更新价格</Button>
+          <Button icon={<SyncOutlined />} onClick={handleAutoUpdatePrices} loading={autoUpdating}>自动更新价格</Button>
+          <Button icon={<EditOutlined />} onClick={() => setPriceModal(true)}>手动更新价格</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setTradeModal(true)}>记录交易</Button>
         </Space>
       </div>
@@ -304,6 +343,13 @@ export default function Investments() {
         open={!!detailHolding}
         onClose={() => setDetailHolding(null)}
         transactions={transactions}
+      />
+      <SellModal
+        open={!!sellHolding}
+        holding={sellHolding}
+        onCancel={() => setSellHolding(null)}
+        onOk={handleSell}
+        loading={saving}
       />
     </div>
   )
