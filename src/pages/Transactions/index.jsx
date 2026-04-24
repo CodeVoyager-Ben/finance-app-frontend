@@ -79,23 +79,24 @@ export default function Transactions() {
     return params
   }, [typeFilter, filterAccount, filterCategory, filterDateRange, filterSearch])
 
-  useEffect(() => {
-    // Load accounts & categories once
-    const loadMeta = async () => {
-      try {
-        const [accs, cats] = await Promise.all([getAccounts(), getCategories()])
-        setAccounts(accs.results || accs)
-        setCategories(cats.results || cats)
-      } catch (e) { console.error(e) }
-    }
-    loadMeta()
-  }, [])
-
   useEffect(() => { loadData() }, [typeFilter, filterAccount, filterCategory, filterDateRange])
 
   const loadData = async (page = 1) => {
     setLoading(true)
     try {
+      // Load accounts & categories if not yet loaded
+      let accs = accounts, cats = categories
+      if (accs.length === 0 || cats.length === 0) {
+        const [a, c] = await Promise.all([getAccounts(), getCategories()])
+        accs = a.results || a
+        cats = c.results || c
+        setAccounts(accs)
+        setCategories(cats)
+        if (!selectedAccount && accs.length > 0) {
+          setSelectedAccount(accs[0].id)
+        }
+      }
+
       const params = buildFilterParams(page)
       const trans = await getTransactions(params)
       const results = trans.results || trans
@@ -113,13 +114,20 @@ export default function Transactions() {
         total: trans.count || results.length,
       }))
 
-      // Compute summary from current page results
+      // Compute summary - exclude transactions from "exclude_from_reports" accounts
+      const excludedAccountIds = new Set(
+        accs.filter(a => a.exclude_from_reports).map(a => a.id)
+      )
+      const reportable = filtered.filter(t => {
+        const tAccountId = typeof t.account === 'object' ? t.account?.id : t.account
+        return !excludedAccountIds.has(tAccountId)
+      })
       let totalIncome = 0, totalExpense = 0
-      filtered.forEach(t => {
+      reportable.forEach(t => {
         if (t.transaction_type === 'income') totalIncome += parseFloat(t.amount)
         else if (t.transaction_type === 'expense') totalExpense += parseFloat(t.amount)
       })
-      setSummary({ income: totalIncome, expense: totalExpense, count: trans.count || results.length })
+      setSummary({ income: totalIncome, expense: totalExpense, count: reportable.length })
     } catch (e) {
       console.error(e)
     } finally {
@@ -365,7 +373,7 @@ export default function Transactions() {
               allowClear
               style={{ width: '100%' }}
               options={accounts.filter(a => a.is_active).map(a => ({
-                label: <span>{a.icon || '💰'} {a.name}</span>,
+                label: <span>{a.icon || '💰'} {a.name}{a.exclude_from_reports ? ' (不计入报表)' : ''}</span>,
                 value: a.id,
               }))}
             />
