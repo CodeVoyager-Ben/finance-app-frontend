@@ -127,7 +127,7 @@ export default function Dashboard() {
               style={{ background: card.bg, border: 'none' }}>
               <Statistic
                 title={<span style={{ color: 'rgba(255,255,255,0.85)' }}>{card.title}</span>}
-                value={card.value} prefix="¥"
+                value={card.value} prefix="¥" precision={2}
                 valueStyle={{ color: '#fff', fontSize: 26, fontWeight: 700 }}
                 suffix={card.icon}
               />

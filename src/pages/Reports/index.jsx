@@ -110,6 +110,7 @@ export default function Reports() {
                   title={<span style={{ color: 'rgba(255,255,255,0.85)' }}>总资产</span>}
                   value={balanceSheet.assets.total}
                   prefix="¥"
+                  precision={2}
                   valueStyle={{ color: '#fff', fontSize: 22, fontWeight: 700 }}
                 />
               </Card>
@@ -121,6 +122,7 @@ export default function Reports() {
                   title={<span style={{ color: 'rgba(255,255,255,0.85)' }}>总负债</span>}
                   value={balanceSheet.liabilities.total}
                   prefix="¥"
+                  precision={2}
                   valueStyle={{ color: '#fff', fontSize: 22, fontWeight: 700 }}
                 />
               </Card>
@@ -137,6 +139,7 @@ export default function Reports() {
                   title={<span style={{ color: 'rgba(255,255,255,0.85)' }}>净资产</span>}
                   value={balanceSheet.net_worth}
                   prefix="¥"
+                  precision={2}
                   suffix={<WalletOutlined />}
                   valueStyle={{ color: '#fff', fontSize: 24, fontWeight: 700 }}
                 />
@@ -154,6 +157,7 @@ export default function Reports() {
                   title={<span style={{ color: 'rgba(255,255,255,0.85)' }}>环比变化</span>}
                   value={balanceSheet.net_worth_change?.change || 0}
                   prefix={balanceSheet.net_worth_change?.change >= 0 ? '+¥' : '¥'}
+                  precision={2}
                   suffix={
                     <span style={{ fontSize: 13 }}>
                       ({balanceSheet.net_worth_change?.change_pct > 0 ? '+' : ''}{balanceSheet.net_worth_change?.change_pct || 0}%)
