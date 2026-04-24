@@ -5,9 +5,9 @@ import {
   Drawer, Grid,
 } from 'antd'
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined,
+  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined,
   ArrowUpOutlined, ArrowDownOutlined, SwapOutlined,
-  CreditCardOutlined,
+  CreditCardOutlined, ReloadOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import {
@@ -17,8 +17,10 @@ import {
 
 const { Title, Text } = Typography
 const { useBreakpoint } = Grid
+const { RangePicker } = DatePicker
 
 const TYPE_OPTIONS = [
+  { label: '全部', value: 'all' },
   { label: '支出', value: 'expense', color: '#ff4d4f' },
   { label: '收入', value: 'income', color: '#52c41a' },
   { label: '转账', value: 'transfer', color: '#1677ff' },
@@ -33,8 +35,17 @@ export default function Transactions() {
   const [loading, setLoading] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editing, setEditing] = useState(null)
+
+  // ── Filter state ──
   const [typeFilter, setTypeFilter] = useState('all')
+  const [filterAccount, setFilterAccount] = useState(undefined)
+  const [filterCategory, setFilterCategory] = useState(undefined)
+  const [filterDateRange, setFilterDateRange] = useState(null)
+  const [filterSearch, setFilterSearch] = useState('')
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 })
+
+  // ── Summary ──
+  const [summary, setSummary] = useState({ income: 0, expense: 0, count: 0 })
 
   // Quick entry form state
   const [entryType, setEntryType] = useState('expense')
@@ -46,28 +57,83 @@ export default function Transactions() {
   const [entryDate, setEntryDate] = useState(dayjs())
   const [expandedParent, setExpandedParent] = useState(null)
 
-  useEffect(() => { loadData() }, [])
+  // Build filter params for API
+  const buildFilterParams = useCallback((page = 1) => {
+    const params = { page }
+    if (typeFilter !== 'all') {
+      if (typeFilter === 'credit_card') {
+        // 还信用卡在后端是 transfer + to_account 为信用卡
+        // 前端筛选不够精确，取 transfer 然后客户端再过滤
+        params.transaction_type = 'transfer'
+      } else {
+        params.transaction_type = typeFilter
+      }
+    }
+    if (filterAccount) params.account = filterAccount
+    if (filterCategory) params.category = filterCategory
+    if (filterDateRange && filterDateRange[0]) {
+      params.start_date = filterDateRange[0].format('YYYY-MM-DD')
+      params.end_date = filterDateRange[1].format('YYYY-MM-DD')
+    }
+    if (filterSearch.trim()) params.search = filterSearch.trim()
+    return params
+  }, [typeFilter, filterAccount, filterCategory, filterDateRange, filterSearch])
 
-  const loadData = async () => {
+  useEffect(() => {
+    // Load accounts & categories once
+    const loadMeta = async () => {
+      try {
+        const [accs, cats] = await Promise.all([getAccounts(), getCategories()])
+        setAccounts(accs.results || accs)
+        setCategories(cats.results || cats)
+      } catch (e) { console.error(e) }
+    }
+    loadMeta()
+  }, [])
+
+  useEffect(() => { loadData() }, [typeFilter, filterAccount, filterCategory, filterDateRange])
+
+  const loadData = async (page = 1) => {
     setLoading(true)
     try {
-      const [trans, accs, cats] = await Promise.all([
-        getTransactions({ page: pagination.current }),
-        getAccounts(),
-        getCategories(),
-      ])
-      setData(trans.results || trans)
-      setPagination(p => ({ ...p, total: trans.count || (trans.results || trans).length }))
-      setAccounts(accs.results || accs)
-      setCategories(cats.results || cats)
-      if (!selectedAccount && (accs.results || accs).length > 0) {
-        setSelectedAccount((accs.results || accs)[0].id)
+      const params = buildFilterParams(page)
+      const trans = await getTransactions(params)
+      const results = trans.results || trans
+
+      // Client-side filter for credit_card (transfer to credit card account)
+      let filtered = results
+      if (typeFilter === 'credit_card') {
+        filtered = results.filter(t => t.transaction_type === 'transfer' && t.to_account_name)
       }
+
+      setData(filtered)
+      setPagination(p => ({
+        ...p,
+        current: page,
+        total: trans.count || results.length,
+      }))
+
+      // Compute summary from current page results
+      let totalIncome = 0, totalExpense = 0
+      filtered.forEach(t => {
+        if (t.transaction_type === 'income') totalIncome += parseFloat(t.amount)
+        else if (t.transaction_type === 'expense') totalExpense += parseFloat(t.amount)
+      })
+      setSummary({ income: totalIncome, expense: totalExpense, count: trans.count || results.length })
     } catch (e) {
       console.error(e)
     } finally {
       setLoading(false)
     }
+  }
+
+  // Reset filters
+  const resetFilters = () => {
+    setTypeFilter('all')
+    setFilterAccount(undefined)
+    setFilterCategory(undefined)
+    setFilterDateRange(null)
+    setFilterSearch('')
   }
 
   const topLevelCategories = categories.filter(c => ['transfer', 'credit_card'].includes(entryType) ? true : c.category_type === entryType && !c.parent)
@@ -104,7 +170,7 @@ export default function Transactions() {
       setNote('')
       setSelectedCategory(null)
       setToAccount(null)
-      loadData()
+      loadData(pagination.current)
     } catch {}
   }
 
@@ -126,7 +192,7 @@ export default function Transactions() {
       setDrawerOpen(false)
       setEditing(null)
       resetForm()
-      loadData()
+      loadData(pagination.current)
     } catch {}
   }
 
@@ -162,14 +228,8 @@ export default function Transactions() {
   const handleDelete = async (id) => {
     await deleteTransaction(id)
     message.success('删除成功')
-    loadData()
+    loadData(pagination.current)
   }
-
-  const filteredData = typeFilter === 'all'
-    ? data
-    : typeFilter === 'credit_card'
-      ? data.filter(t => t.transaction_type === 'transfer' && t.to_account_name)
-      : data.filter(t => t.transaction_type === typeFilter)
 
   // Number pad
   const handleNumPad = (val) => {
@@ -185,12 +245,23 @@ export default function Transactions() {
     } else {
       setAmount(prev => {
         if (prev === '0' && val !== '.') return val
-        // Limit decimal places to 2
         if (prev.includes('.') && prev.split('.')[1].length >= 2) return prev
         return prev + val
       })
     }
   }
+
+  // Build category filter options (flat list with hierarchy)
+  const categoryFilterOptions = categories
+    .filter(c => !c.parent)
+    .flatMap(parent => {
+      const children = categories.filter(c => c.parent === parent.id)
+      const items = [{ label: `${parent.icon} ${parent.name}`, value: parent.id }]
+      children.forEach(child => {
+        items.push({ label: `　${child.icon} ${child.name}`, value: child.id })
+      })
+      return items
+    })
 
   const columns = [
     {
@@ -264,6 +335,8 @@ export default function Transactions() {
     },
   ]
 
+  const hasFilters = typeFilter !== 'all' || filterAccount || filterCategory || filterDateRange || filterSearch
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -274,22 +347,122 @@ export default function Transactions() {
         </Button>
       </div>
 
-      <Card styles={{ body: { padding: '12px 24px' } }} style={{ marginBottom: 16 }}>
-        <Segmented
-          options={TYPE_OPTIONS.map(t => ({ label: t.label, value: t.value }))}
-          value={typeFilter}
-          onChange={setTypeFilter}
-        />
+      {/* ── Filter Bar ── */}
+      <Card styles={{ body: { padding: '16px 20px' } }} style={{ marginBottom: 16 }}>
+        <Row gutter={[12, 12]} align="middle">
+          <Col>
+            <Segmented
+              options={TYPE_OPTIONS.map(t => ({ label: t.label, value: t.value }))}
+              value={typeFilter}
+              onChange={(v) => { setTypeFilter(v); setPagination(p => ({ ...p, current: 1 })) }}
+            />
+          </Col>
+          <Col flex="160px">
+            <Select
+              value={filterAccount}
+              onChange={(v) => { setFilterAccount(v); setPagination(p => ({ ...p, current: 1 })) }}
+              placeholder="全部账户"
+              allowClear
+              style={{ width: '100%' }}
+              options={accounts.filter(a => a.is_active).map(a => ({
+                label: <span>{a.icon || '💰'} {a.name}</span>,
+                value: a.id,
+              }))}
+            />
+          </Col>
+          <Col flex="160px">
+            <Select
+              value={filterCategory}
+              onChange={(v) => { setFilterCategory(v); setPagination(p => ({ ...p, current: 1 })) }}
+              placeholder="全部分类"
+              allowClear
+              showSearch
+              style={{ width: '100%' }}
+              options={categoryFilterOptions}
+            />
+          </Col>
+          <Col flex="auto">
+            <RangePicker
+              value={filterDateRange}
+              onChange={(dates) => { setFilterDateRange(dates); setPagination(p => ({ ...p, current: 1 })) }}
+              style={{ width: '100%' }}
+              placeholder={['开始日期', '结束日期']}
+            />
+          </Col>
+          <Col flex="160px">
+            <Input
+              prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+              placeholder="搜索备注..."
+              value={filterSearch}
+              onChange={(e) => setFilterSearch(e.target.value)}
+              onPressEnter={() => { setPagination(p => ({ ...p, current: 1 })); loadData() }}
+              allowClear
+              onClear={() => { setFilterSearch(''); loadData() }}
+            />
+          </Col>
+          {hasFilters && (
+            <Col>
+              <Button icon={<ReloadOutlined />} onClick={resetFilters}>重置</Button>
+            </Col>
+          )}
+        </Row>
       </Card>
+
+      {/* ── Summary Bar ── */}
+      {summary.count > 0 && (
+        <div style={{
+          display: 'flex', gap: 32, padding: '12px 24px', marginBottom: 16,
+          background: 'linear-gradient(135deg, #f0f5ff 0%, #e6f7ff 100%)',
+          borderRadius: 12, border: '1px solid #d6e4ff',
+        }}>
+          <div>
+            <Text type="secondary" style={{ fontSize: 12 }}>筛选结果</Text>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#1677ff' }}>
+              {summary.count} 笔
+            </div>
+          </div>
+          {summary.income > 0 && (
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>总收入</Text>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#52c41a' }}>
+                +¥{summary.income.toFixed(2)}
+              </div>
+            </div>
+          )}
+          {summary.expense > 0 && (
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>总支出</Text>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#ff4d4f' }}>
+                -¥{summary.expense.toFixed(2)}
+              </div>
+            </div>
+          )}
+          {summary.income > 0 && summary.expense > 0 && (
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>结余</Text>
+              <div style={{
+                fontSize: 18, fontWeight: 700,
+                color: summary.income - summary.expense >= 0 ? '#52c41a' : '#ff4d4f',
+              }}>
+                {(summary.income - summary.expense) >= 0 ? '+' : ''}¥{(summary.income - summary.expense).toFixed(2)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <Card>
         <Table
           columns={columns}
-          dataSource={filteredData}
+          dataSource={data}
           rowKey="id"
           loading={loading}
-          pagination={pagination}
-          onChange={(pag) => setPagination(pag)}
+          pagination={{
+            ...pagination,
+            showTotal: (total) => `共 ${total} 笔`,
+            showSizeChanger: false,
+          }}
+          onChange={(pag) => { setPagination(pag); loadData(pag.current) }}
           size="middle"
         />
       </Card>
@@ -305,7 +478,7 @@ export default function Transactions() {
       >
         {/* Type Selector */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          {TYPE_OPTIONS.map(t => (
+          {TYPE_OPTIONS.filter(t => t.value !== 'all').map(t => (
             <Button
               key={t.value}
               type={entryType === t.value ? 'primary' : 'default'}
@@ -476,7 +649,6 @@ export default function Transactions() {
             value={amount}
             onChange={(e) => {
               const val = e.target.value
-              // Allow digits, one dot, up to 2 decimal places
               if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
                 setAmount(val)
               }

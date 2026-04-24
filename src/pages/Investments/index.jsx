@@ -13,6 +13,7 @@ import TradeModal from './components/TradeModal'
 import DividendModal from './components/DividendModal'
 import PriceUpdateModal from './components/PriceUpdateModal'
 import SellModal from './components/SellModal'
+import InvestmentCalendar from './components/InvestmentCalendar'
 import { DIVIDEND_TYPES } from './constants'
 
 const fmt = (v) => Number(v || 0).toFixed(2)
@@ -286,6 +287,11 @@ export default function Investments() {
       key: 'analysis',
       label: '分析',
       children: <AnalysisTab />,
+    },
+    {
+      key: 'calendar',
+      label: '日历',
+      children: <InvestmentCalendar />,
     },
   ]
 
