@@ -60,6 +60,20 @@ export default function AccountCards({ accounts, onAddAccount, onEditAccount, on
                   <span>市值: {hidden ? '****' : Number(acc.total_market_value).toFixed(2)}</span>
                 )}
               </div>
+              {Number(acc.initial_investment) > 0 && (
+                <div style={{ color: '#8c8c8c', fontSize: 12, marginTop: 2, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>投入: {hidden ? '****' : Number(acc.initial_investment).toFixed(2)}</span>
+                  <span style={{ color: Number(acc.account_total_return) >= 0 ? '#f5222d' : '#52c41a' }}>
+                    {hidden ? '****' : `${Number(acc.account_total_return) >= 0 ? '+' : ''}${Number(acc.account_total_return).toFixed(2)}`}
+                    {hidden ? '' : ` (${Number(acc.account_total_return_pct).toFixed(2)}%)`}
+                  </span>
+                </div>
+              )}
+              {Number(acc.total_holdings_cost) > 0 && (
+                <div style={{ color: '#8c8c8c', fontSize: 12, marginTop: 2 }}>
+                  持仓成本: {hidden ? '****' : Number(acc.total_holdings_cost).toFixed(2)}
+                </div>
+              )}
             </Card>
           </Col>
         ))}

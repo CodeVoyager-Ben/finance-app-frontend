@@ -64,6 +64,9 @@ export default function AccountModal({ open, onCancel, onOk, assetTypes, fundAcc
         <Form.Item name="balance" label="初始余额" initialValue={0}>
           <InputNumber style={{ width: '100%' }} min={0} precision={2} />
         </Form.Item>
+        <Form.Item name="initial_investment" label="初始投入金额" initialValue={0}>
+          <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="记录历史总投入，用于计算真实收益率" />
+        </Form.Item>
       </Form>
     </Modal>
   )

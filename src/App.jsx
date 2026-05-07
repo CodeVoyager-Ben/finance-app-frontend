@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Spin } from 'antd'
 import useAuthStore from './store/authStore'
@@ -12,15 +13,16 @@ import Lending from './pages/Lending'
 import Settings from './pages/Settings'
 
 function PrivateRoute({ children }) {
-  const { isAuthenticated, loading } = useAuthStore((s) => ({
-    isAuthenticated: s.isAuthenticated,
-    loading: s.loading,
-  }))
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const loading = useAuthStore((s) => s.loading)
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />
   return isAuthenticated ? children : <Navigate to="/login" />
 }
 
 export default function App() {
+  const fetchUser = useAuthStore((s) => s.fetchUser)
+  useEffect(() => { fetchUser() }, [fetchUser])
+
   return (
     <Routes>
       <Route path="/login" element={<Login />} />

@@ -29,24 +29,36 @@ const addPendingRequest = (cb) => {
   return cb
 }
 
+// Handle auth failure - logout via store and redirect to login
+const handleAuthFailure = async () => {
+  try {
+    const { default: useAuthStore } = await import('../store/authStore')
+    useAuthStore.getState().logout()
+  } catch {}
+}
+
 // Response interceptor - handle auth errors with token refresh
 request.interceptors.response.use(
   (response) => response.data,
   async (error) => {
     const originalRequest = error.config
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      const refreshToken = localStorage.getItem('refresh_token')
-
-      if (!refreshToken || originalRequest.url?.includes('/auth/refresh/')) {
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        if (!window.location.pathname.includes('/login')) {
-          window.location.href = '/login'
-        }
+    if (error.response?.status === 401) {
+      // Already retried once - give up
+      if (originalRequest._retry) {
+        await handleAuthFailure()
         return Promise.reject(error)
       }
 
+      const refreshToken = localStorage.getItem('refresh_token')
+
+      // No refresh token or refresh endpoint itself failed
+      if (!refreshToken || originalRequest.url?.includes('/auth/refresh/')) {
+        await handleAuthFailure()
+        return Promise.reject(error)
+      }
+
+      // Another request is already refreshing - queue up
       if (isRefreshing) {
         return new Promise((resolve) => {
           addPendingRequest((newToken) => {
@@ -56,6 +68,7 @@ request.interceptors.response.use(
         })
       }
 
+      // Try to refresh
       originalRequest._retry = true
       isRefreshing = true
 
@@ -74,14 +87,9 @@ request.interceptors.response.use(
           return request(originalRequest)
         }
       } catch (refreshError) {
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        // Reject all queued pending requests so they don't hang forever
         pendingRequests.forEach(cb => cb(null))
         pendingRequests = []
-        if (!window.location.pathname.includes('/login')) {
-          window.location.href = '/login'
-        }
+        await handleAuthFailure()
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false
