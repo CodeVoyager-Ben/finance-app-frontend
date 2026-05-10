@@ -11,7 +11,7 @@ import {
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import {
-  getTransactions, createTransaction, updateTransaction, deleteTransaction,
+  getTransactions, getTransactionSummary, createTransaction, updateTransaction, deleteTransaction,
   getAccounts, getCategories,
 } from '../../api/finance'
 
@@ -40,7 +40,8 @@ export default function Transactions() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [filterAccount, setFilterAccount] = useState(undefined)
   const [filterCategory, setFilterCategory] = useState(undefined)
-  const [filterDateRange, setFilterDateRange] = useState(null)
+  const [filterDateMode, setFilterDateMode] = useState('all')
+  const [filterDateValue, setFilterDateValue] = useState(null)
   const [filterSearch, setFilterSearch] = useState('')
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 })
 
@@ -71,15 +72,21 @@ export default function Transactions() {
     }
     if (filterAccount) params.account = filterAccount
     if (filterCategory) params.category = filterCategory
-    if (filterDateRange && filterDateRange[0]) {
-      params.start_date = filterDateRange[0].format('YYYY-MM-DD')
-      params.end_date = filterDateRange[1].format('YYYY-MM-DD')
+    if (filterDateMode === 'month' && filterDateValue) {
+      params.start_date = filterDateValue.startOf('month').format('YYYY-MM-DD')
+      params.end_date = filterDateValue.endOf('month').format('YYYY-MM-DD')
+    } else if (filterDateMode === 'year' && filterDateValue) {
+      params.start_date = filterDateValue.startOf('year').format('YYYY-MM-DD')
+      params.end_date = filterDateValue.endOf('year').format('YYYY-MM-DD')
+    } else if (filterDateMode === 'custom' && filterDateValue?.[0]) {
+      params.start_date = filterDateValue[0].format('YYYY-MM-DD')
+      params.end_date = filterDateValue[1].format('YYYY-MM-DD')
     }
     if (filterSearch.trim()) params.search = filterSearch.trim()
     return params
-  }, [typeFilter, filterAccount, filterCategory, filterDateRange, filterSearch])
+  }, [typeFilter, filterAccount, filterCategory, filterDateMode, filterDateValue, filterSearch])
 
-  useEffect(() => { loadData() }, [typeFilter, filterAccount, filterCategory, filterDateRange])
+  useEffect(() => { loadData() }, [typeFilter, filterAccount, filterCategory, filterDateMode, filterDateValue])
 
   const loadData = async (page = 1) => {
     setLoading(true)
@@ -98,7 +105,11 @@ export default function Transactions() {
       }
 
       const params = buildFilterParams(page)
-      const trans = await getTransactions(params)
+      const { page: _, ...summaryParams } = params
+      const [trans, summaryRes] = await Promise.all([
+        getTransactions(params),
+        getTransactionSummary(summaryParams),
+      ])
       const results = trans.results || trans
 
       // Client-side filter for credit_card (transfer to credit card account)
@@ -114,20 +125,11 @@ export default function Transactions() {
         total: trans.count || results.length,
       }))
 
-      // Compute summary - exclude transactions from "exclude_from_reports" accounts
-      const excludedAccountIds = new Set(
-        accs.filter(a => a.exclude_from_reports).map(a => a.id)
-      )
-      const reportable = filtered.filter(t => {
-        const tAccountId = typeof t.account === 'object' ? t.account?.id : t.account
-        return !excludedAccountIds.has(tAccountId)
+      setSummary({
+        income: parseFloat(summaryRes.income),
+        expense: parseFloat(summaryRes.expense),
+        count: summaryRes.count,
       })
-      let totalIncome = 0, totalExpense = 0
-      reportable.forEach(t => {
-        if (t.transaction_type === 'income') totalIncome += parseFloat(t.amount)
-        else if (t.transaction_type === 'expense') totalExpense += parseFloat(t.amount)
-      })
-      setSummary({ income: totalIncome, expense: totalExpense, count: reportable.length })
     } catch (e) {
       console.error(e)
     } finally {
@@ -140,7 +142,8 @@ export default function Transactions() {
     setTypeFilter('all')
     setFilterAccount(undefined)
     setFilterCategory(undefined)
-    setFilterDateRange(null)
+    setFilterDateMode('all')
+    setFilterDateValue(null)
     setFilterSearch('')
   }
 
@@ -313,6 +316,7 @@ export default function Transactions() {
     },
     {
       title: '金额', dataIndex: 'amount', key: 'amount', width: 110, align: 'right',
+      sorter: (a, b) => parseFloat(a.amount) - parseFloat(b.amount),
       render: (v, r) => {
         const isCCRepay = r.transaction_type === 'transfer' && r.to_account_name
         return (
@@ -347,7 +351,7 @@ export default function Transactions() {
     },
   ]
 
-  const hasFilters = typeFilter !== 'all' || filterAccount || filterCategory || filterDateRange || filterSearch
+  const hasFilters = typeFilter !== 'all' || filterAccount || filterCategory || filterDateMode !== 'all' || filterSearch
 
   return (
     <div>
@@ -393,14 +397,55 @@ export default function Transactions() {
               options={categoryFilterOptions}
             />
           </Col>
-          <Col flex="auto">
-            <RangePicker
-              value={filterDateRange}
-              onChange={(dates) => { setFilterDateRange(dates); setPagination(p => ({ ...p, current: 1 })) }}
-              style={{ width: '100%' }}
-              placeholder={['开始日期', '结束日期']}
+          <Col>
+            <Select
+              value={filterDateMode}
+              onChange={(v) => {
+                setFilterDateMode(v)
+                setFilterDateValue(null)
+                setPagination(p => ({ ...p, current: 1 }))
+              }}
+              style={{ width: 100 }}
+              options={[
+                { label: '全部时间', value: 'all' },
+                { label: '按月', value: 'month' },
+                { label: '按年', value: 'year' },
+                { label: '自定义', value: 'custom' },
+              ]}
             />
           </Col>
+          {filterDateMode === 'month' && (
+            <Col>
+              <DatePicker
+                picker="month"
+                value={filterDateValue}
+                onChange={(v) => { setFilterDateValue(v); setPagination(p => ({ ...p, current: 1 })) }}
+                placeholder="选择月份"
+                allowClear
+              />
+            </Col>
+          )}
+          {filterDateMode === 'year' && (
+            <Col>
+              <DatePicker
+                picker="year"
+                value={filterDateValue}
+                onChange={(v) => { setFilterDateValue(v); setPagination(p => ({ ...p, current: 1 })) }}
+                placeholder="选择年份"
+                allowClear
+              />
+            </Col>
+          )}
+          {filterDateMode === 'custom' && (
+            <Col flex="auto">
+              <RangePicker
+                value={filterDateValue}
+                onChange={(dates) => { setFilterDateValue(dates); setPagination(p => ({ ...p, current: 1 })) }}
+                style={{ width: '100%' }}
+                placeholder={['开始日期', '结束日期']}
+              />
+            </Col>
+          )}
           <Col flex="160px">
             <Input
               prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}

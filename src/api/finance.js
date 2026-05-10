@@ -14,6 +14,7 @@ export const deleteCategory = (id) => request.delete(`/categories/${id}/`)
 
 // Transactions
 export const getTransactions = (params) => request.get('/transactions/', { params })
+export const getTransactionSummary = (params) => request.get('/transactions/filter_summary/', { params })
 export const createTransaction = (data) => request.post('/transactions/', data)
 export const updateTransaction = (id, data) => request.patch(`/transactions/${id}/`, data)
 export const deleteTransaction = (id) => request.delete(`/transactions/${id}/`)
@@ -80,7 +81,7 @@ export const getLendingRecords = (params) => request.get('/lending-records/', { 
 export const createLendingRecord = (data) => request.post('/lending-records/', data)
 export const updateLendingRecord = (id, data) => request.patch(`/lending-records/${id}/`, data)
 export const deleteLendingRecord = (id) => request.delete(`/lending-records/${id}/`)
-export const getLendingSummary = () => request.get('/lending-records/summary/')
+export const getLendingSummary = (params) => request.get('/lending-records/summary/', { params })
 
 // Repayments
 export const getRepayments = (params) => request.get('/repayments/', { params })

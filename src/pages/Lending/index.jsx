@@ -6,7 +6,7 @@ import {
 } from 'antd'
 import {
   PlusOutlined, TeamOutlined, ArrowUpOutlined, ArrowDownOutlined,
-  DollarOutlined, CheckCircleOutlined, EditOutlined,
+  DollarOutlined, CheckCircleOutlined, EditOutlined, ReloadOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import {
@@ -17,6 +17,7 @@ import PrivacyToggle from '../../components/PrivacyToggle'
 import usePrivacyStore from '../../store/privacyStore'
 
 const { Title, Text } = Typography
+const { RangePicker } = DatePicker
 
 const STATUS_MAP = {
   outstanding: { label: '未还清', color: 'red' },
@@ -32,6 +33,8 @@ export default function Lending() {
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('lend')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [filterDateMode, setFilterDateMode] = useState('all')
+  const [filterDateValue, setFilterDateValue] = useState(null)
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 })
 
   const [recordModal, setRecordModal] = useState(false)
@@ -43,7 +46,27 @@ export default function Lending() {
   const [repayForm] = Form.useForm()
   const hidden = usePrivacyStore((s) => s.hiddenPages)['lending']
 
-  useEffect(() => { loadData() }, [activeTab, statusFilter, pagination.current])
+  const getDateParams = () => {
+    if (filterDateMode === 'month' && filterDateValue) {
+      return {
+        start_date: filterDateValue.startOf('month').format('YYYY-MM-DD'),
+        end_date: filterDateValue.endOf('month').format('YYYY-MM-DD'),
+      }
+    } else if (filterDateMode === 'year' && filterDateValue) {
+      return {
+        start_date: filterDateValue.startOf('year').format('YYYY-MM-DD'),
+        end_date: filterDateValue.endOf('year').format('YYYY-MM-DD'),
+      }
+    } else if (filterDateMode === 'custom' && filterDateValue?.[0]) {
+      return {
+        start_date: filterDateValue[0].format('YYYY-MM-DD'),
+        end_date: filterDateValue[1].format('YYYY-MM-DD'),
+      }
+    }
+    return {}
+  }
+
+  useEffect(() => { loadData() }, [activeTab, statusFilter, filterDateMode, filterDateValue, pagination.current])
 
   const loadData = async () => {
     setLoading(true)
@@ -53,10 +76,11 @@ export default function Lending() {
         page: pagination.current,
       }
       if (statusFilter !== 'all') params.status = statusFilter
+      const dateParams = getDateParams()
 
       const [recs, sum, accs] = await Promise.all([
-        getLendingRecords(params),
-        getLendingSummary(),
+        getLendingRecords({ ...params, ...dateParams }),
+        getLendingSummary(dateParams),
         getAccounts(),
       ])
       setRecords(recs.results || recs)
@@ -308,17 +332,59 @@ export default function Lending() {
             ]}
             style={{ marginBottom: 0 }}
           />
-          <Segmented
-            value={statusFilter}
-            onChange={(v) => { setStatusFilter(v); setPagination(prev => ({ ...prev, current: 1 })) }}
-            options={[
-              { label: '全部', value: 'all' },
-              { label: '未还清', value: 'outstanding' },
-              { label: '部分归还', value: 'partial' },
-              { label: '已结清', value: 'settled' },
-              { label: '已核销', value: 'written_off' },
-            ]}
-          />
+          <Space size={8}>
+            <Select
+              value={filterDateMode}
+              onChange={(v) => {
+                setFilterDateMode(v)
+                setFilterDateValue(null)
+                setPagination(prev => ({ ...prev, current: 1 }))
+              }}
+              style={{ width: 100 }}
+              options={[
+                { label: '全部时间', value: 'all' },
+                { label: '按月', value: 'month' },
+                { label: '按年', value: 'year' },
+                { label: '自定义', value: 'custom' },
+              ]}
+            />
+            {filterDateMode === 'month' && (
+              <DatePicker
+                picker="month"
+                value={filterDateValue}
+                onChange={(v) => { setFilterDateValue(v); setPagination(prev => ({ ...prev, current: 1 })) }}
+                placeholder="选择月份"
+                allowClear
+              />
+            )}
+            {filterDateMode === 'year' && (
+              <DatePicker
+                picker="year"
+                value={filterDateValue}
+                onChange={(v) => { setFilterDateValue(v); setPagination(prev => ({ ...prev, current: 1 })) }}
+                placeholder="选择年份"
+                allowClear
+              />
+            )}
+            {filterDateMode === 'custom' && (
+              <RangePicker
+                value={filterDateValue}
+                onChange={(dates) => { setFilterDateValue(dates); setPagination(prev => ({ ...prev, current: 1 })) }}
+                placeholder={['开始日期', '结束日期']}
+              />
+            )}
+            <Segmented
+              value={statusFilter}
+              onChange={(v) => { setStatusFilter(v); setPagination(prev => ({ ...prev, current: 1 })) }}
+              options={[
+                { label: '全部', value: 'all' },
+                { label: '未还清', value: 'outstanding' },
+                { label: '部分归还', value: 'partial' },
+                { label: '已结清', value: 'settled' },
+                { label: '已核销', value: 'written_off' },
+              ]}
+            />
+          </Space>
         </div>
 
         <Table
