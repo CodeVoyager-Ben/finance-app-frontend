@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Row, Col, Card, Statistic, Table, Tag, Spin, Typography, Progress, Button, InputNumber, Modal, Form, message, Space, Select } from 'antd'
 import {
   ArrowUpOutlined, ArrowDownOutlined, WalletOutlined, RiseOutlined,
@@ -25,9 +25,9 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const hidden = usePrivacyStore((s) => s.hiddenPages)['dashboard']
 
-  useEffect(() => { loadData() }, [])
+  const mountedRef = useRef(true)
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true)
     try {
       const [dash, cat, monthly, cats] = await Promise.all([
@@ -36,16 +36,25 @@ export default function Dashboard() {
         getMonthlySummary({ year: dayjs().year() }),
         getCategories({ category_type: 'expense' }),
       ])
+      if (!mountedRef.current) return
       setData(dash)
       setCategoryData(cat)
       setMonthlyData(monthly)
       setAllCategories((cats.results || cats).filter(c => !c.parent))
     } catch (e) {
+      if (!mountedRef.current) return
       console.error(e)
+      message.error('加载数据失败')
     } finally {
-      setLoading(false)
+      if (mountedRef.current) setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    mountedRef.current = true
+    loadData()
+    return () => { mountedRef.current = false }
+  }, [loadData])
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />
 
@@ -252,8 +261,8 @@ export default function Dashboard() {
             <>
               <Form.Item name="category" label="预算范围（留空为总预算）">
                 <Select allowClear placeholder="留空 = 总预算"
-                  options={allCategories.filter(c => c.category_type === 'expense').map(c => ({
-                    label: `${c.icon} ${c.name}`, value: c.id,
+                  options={allCategories.map(c => ({
+                    label: `${c.category_icon} ${c.category_name}`, value: c.id,
                   }))}
                 />
               </Form.Item>

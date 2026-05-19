@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Card, Row, Col, Table, Button, Modal, Form, Input, InputNumber, Select,
   Tag, Space, Typography, Statistic, Tabs, Segmented, Drawer, Descriptions, message, Popconfirm,
@@ -6,13 +6,14 @@ import {
 } from 'antd'
 import {
   PlusOutlined, TeamOutlined, ArrowUpOutlined, ArrowDownOutlined,
-  DollarOutlined, CheckCircleOutlined, EditOutlined, ReloadOutlined,
+  EditOutlined, ReloadOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import {
   getLendingRecords, createLendingRecord, updateLendingRecord, deleteLendingRecord,
   getLendingSummary, createRepayment, getAccounts,
 } from '../../api/finance'
+import request from '../../api/request'
 import PrivacyToggle from '../../components/PrivacyToggle'
 import usePrivacyStore from '../../store/privacyStore'
 
@@ -66,9 +67,7 @@ export default function Lending() {
     return {}
   }
 
-  useEffect(() => { loadData() }, [activeTab, statusFilter, filterDateMode, filterDateValue, pagination.current])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true)
     try {
       const params = {
@@ -78,23 +77,29 @@ export default function Lending() {
       if (statusFilter !== 'all') params.status = statusFilter
       const dateParams = getDateParams()
 
-      const [recs, sum, accs] = await Promise.all([
+      const [recs, sum] = await Promise.all([
         getLendingRecords({ ...params, ...dateParams }),
         getLendingSummary(dateParams),
-        getAccounts(),
       ])
       setRecords(recs.results || recs)
       if (recs.count !== undefined) {
         setPagination(prev => ({ ...prev, total: recs.count }))
       }
       setSummary(sum)
-      setAccounts(accs.results || accs)
     } catch (e) {
       console.error(e)
+      message.error('加载数据失败')
     } finally {
       setLoading(false)
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, statusFilter, filterDateMode, filterDateValue, pagination.current])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  useEffect(() => {
+    getAccounts().then(res => setAccounts(res.results || res)).catch(() => {})
+  }, [])
 
   const handleCreateRecord = async () => {
     try {
@@ -116,7 +121,9 @@ export default function Lending() {
       recordForm.resetFields()
       setSelectedRecord(null)
       loadData()
-    } catch {}
+    } catch {
+      message.error('操作失败')
+    }
   }
 
   const handleRepay = async () => {
@@ -134,15 +141,19 @@ export default function Lending() {
       setRepayModal(false)
       repayForm.resetFields()
       loadData()
-    } catch {}
+    } catch {
+      message.error('还款失败')
+    }
   }
 
   const handleWriteOff = async (record) => {
     try {
-      await updateLendingRecord(record.id, { status: 'written_off' })
+      await request.post(`/lending-records/${record.id}/write-off/`)
       message.success('已核销')
       loadData()
-    } catch {}
+    } catch (err) {
+      message.error(err.response?.data?.detail || '核销失败')
+    }
   }
 
   const handleDelete = async (id) => {
@@ -150,7 +161,9 @@ export default function Lending() {
       await deleteLendingRecord(id)
       message.success('已删除')
       loadData()
-    } catch {}
+    } catch {
+      message.error('删除失败')
+    }
   }
 
   const openRecordModal = (record = null) => {

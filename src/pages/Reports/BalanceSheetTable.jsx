@@ -25,8 +25,7 @@ export default function BalanceSheetTable({ assets, liabilities, netWorth, hidde
   const fmt = (v) => parseFloat(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const m = (v) => hidden ? '****' : v
 
-  const openDetail = async (record) => {
-    const recordType = receivables.items.includes(record) ? 'lend' : 'borrow'
+  const openDetail = async (record, recordType) => {
     setDetailMeta({
       counterparty: record.name,
       recordType,
@@ -106,7 +105,7 @@ export default function BalanceSheetTable({ assets, liabilities, netWorth, hidde
           )}
 
           {/* 投资持仓 */}
-          {assets.investments.items.length > 0 && (
+          {assets.investments?.items?.length > 0 && (
             <Card size="small" title="投资持仓" styles={{ body: { padding: 12 } }}>
               <Table
                 dataSource={assets.investments.items}
@@ -151,7 +150,7 @@ export default function BalanceSheetTable({ assets, liabilities, netWorth, hidde
                 rowKey="name"
                 pagination={false}
                 size="small"
-                onRow={(record) => ({ onClick: () => openDetail(record), style: { cursor: 'pointer' } })}
+                onRow={(record) => ({ onClick: () => openDetail(record, 'lend'), style: { cursor: 'pointer' } })}
                 columns={[
                   { title: '对方', dataIndex: 'name', key: 'name' },
                   { title: '笔数', dataIndex: 'count', key: 'count', align: 'center',
@@ -171,7 +170,7 @@ export default function BalanceSheetTable({ assets, liabilities, netWorth, hidde
           )}
 
           {/* 负债明细 */}
-          {liabilities.items.length > 0 && (
+          {liabilities.items?.length > 0 && (
             <>
               <Divider />
               <Text strong style={{ color: '#ff4d4f', fontSize: 14, display: 'block', marginBottom: 8 }}>
@@ -213,7 +212,7 @@ export default function BalanceSheetTable({ assets, liabilities, netWorth, hidde
                     rowKey="name"
                     pagination={false}
                     size="small"
-                    onRow={(record) => ({ onClick: () => openDetail(record), style: { cursor: 'pointer' } })}
+                    onRow={(record) => ({ onClick: () => openDetail(record, 'borrow'), style: { cursor: 'pointer' } })}
                     columns={[
                       { title: '对方', dataIndex: 'name', key: 'name' },
                       { title: '笔数', dataIndex: 'count', key: 'count', align: 'center',
@@ -281,7 +280,7 @@ export default function BalanceSheetTable({ assets, liabilities, netWorth, hidde
       <Modal
         title={null}
         open={modalOpen}
-        onCancel={() => setModalOpen(false)}
+        onCancel={() => { setModalOpen(false); setDetailRecords([]); setDetailMeta({}) }}
         footer={null}
         width={720}
         closable

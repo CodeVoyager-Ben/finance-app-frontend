@@ -3,16 +3,27 @@ import { ArrowUpOutlined, ArrowDownOutlined, HeartFilled } from '@ant-design/ico
 
 const { Text } = Typography
 
-function RatioCard({ label, value, max, format, thresholds }) {
+function RatioCard({ label, value, max, format, thresholds, inverted = false }) {
   const pct = Math.min((value / max) * 100, 100)
   let color = '#52c41a'
   let status = '健康'
-  if (value >= thresholds.danger) {
-    color = '#ff4d4f'
-    status = '危险'
-  } else if (value >= thresholds.warning) {
-    color = '#faad14'
-    status = '注意'
+  if (inverted) {
+    // 值越低越危险（如储蓄率）
+    if (value <= thresholds.danger) {
+      color = '#ff4d4f'
+      status = '危险'
+    } else if (value <= thresholds.warning) {
+      color = '#faad14'
+      status = '注意'
+    }
+  } else {
+    if (value >= thresholds.danger) {
+      color = '#ff4d4f'
+      status = '危险'
+    } else if (value >= thresholds.warning) {
+      color = '#faad14'
+      status = '注意'
+    }
   }
 
   return (
@@ -68,6 +79,7 @@ export default function HealthRatios({ ratios, netWorthChange, hidden }) {
             max={1}
             format={hidden ? () => '****' : v => `${(v * 100).toFixed(1)}%`}
             thresholds={{ warning: 0.1, danger: 0 }}
+            inverted
           />
         </Col>
         <Col xs={12} sm={6}>

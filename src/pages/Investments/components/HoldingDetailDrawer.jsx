@@ -78,7 +78,7 @@ export default function HoldingDetailDrawer({ holding, open, onClose, transactio
       </Descriptions>
 
       {Number(holding.quantity) > 0 && Number(holding.current_price) > 0 && (() => {
-        const fees = calculateSellFees(holding.current_price, holding.quantity)
+        const fees = calculateSellFees(holding.current_price, holding.quantity, holding.effective_currency)
         const sellPl = Number(fees.net_proceeds) - Number(holding.cost_value)
         return (
           <>

@@ -1,13 +1,14 @@
-import { Modal, Form, InputNumber, Descriptions, Divider, Typography } from 'antd'
+import { Modal, Form, InputNumber, Descriptions, Divider, Typography, DatePicker } from 'antd'
 import dayjs from 'dayjs'
-import { FEE_RATES, plColor, formatMoney } from '../constants'
+import { getFeeRates, plColor, formatMoney } from '../constants'
 
 const { Text } = Typography
 
-function calcFees(amount) {
-  const commission = Math.max(amount * FEE_RATES.commission_rate, FEE_RATES.commission_min)
-  const stampDuty = amount * FEE_RATES.stamp_duty_rate
-  const transferFee = amount * FEE_RATES.transfer_fee_rate
+function calcFees(amount, currency) {
+  const rates = getFeeRates(currency)
+  const commission = Math.max(amount * rates.commission_rate, rates.commission_min)
+  const stampDuty = amount * rates.stamp_duty_rate
+  const transferFee = amount * rates.transfer_fee_rate
   return { commission, stampDuty, transferFee, total: commission + stampDuty + transferFee }
 }
 
@@ -25,7 +26,8 @@ export default function SellModal({ open, holding, onCancel, onOk, loading, hidd
   const amount = price * qty
   const costValue = avgCost * qty
 
-  const fees = amount > 0 ? calcFees(amount) : null
+  const currency = holding.effective_currency || 'CNY'
+  const fees = amount > 0 ? calcFees(amount, currency) : null
   const netProceeds = fees ? amount - fees.total : 0
   const profitLoss = netProceeds - costValue
 
@@ -43,7 +45,7 @@ export default function SellModal({ open, holding, onCancel, onOk, loading, hidd
         amount,
         fee: fees?.total.toFixed(2) || 0,
         profit_loss: profitLoss.toFixed(2),
-        date: dayjs().format('YYYY-MM-DD'),
+        date: values.date.format('YYYY-MM-DD'),
         note: `卖出 ${holding.name} ${values.quantity}股`,
       })
       form.resetFields()
@@ -71,7 +73,7 @@ export default function SellModal({ open, holding, onCancel, onOk, loading, hidd
       </Descriptions>
 
       <Form form={form} layout="vertical"
-        initialValues={{ quantity: maxQty, price: Number(holding.current_price) || undefined }}
+        initialValues={{ quantity: maxQty, price: Number(holding.current_price) || undefined, date: dayjs() }}
       >
         <Form.Item name="quantity" label="卖出数量"
           rules={[
@@ -95,6 +97,9 @@ export default function SellModal({ open, holding, onCancel, onOk, loading, hidd
         </Form.Item>
         <Form.Item name="price" label="卖出价格" rules={[{ required: true, message: '请输入卖出价格' }]}>
           <InputNumber style={{ width: '100%' }} min={0.0001} precision={4} placeholder="输入卖出价格" />
+        </Form.Item>
+        <Form.Item name="date" label="交易日期" rules={[{ required: true, message: '请选择日期' }]}>
+          <DatePicker style={{ width: '100%' }} />
         </Form.Item>
       </Form>
 

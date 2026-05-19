@@ -15,5 +15,5 @@ export default function AmountText({ value, pageKey, prefix = '¥', precision = 
   })
   const sign = num < 0 ? '-' : ''
 
-  return <span style={style} className={className}>{prefix}{sign}{formatted}</span>
+  return <span style={style} className={className}>{sign}{prefix}{formatted}</span>
 }

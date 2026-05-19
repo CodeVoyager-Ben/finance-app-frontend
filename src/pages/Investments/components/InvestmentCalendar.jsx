@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react'
 import { Card, Modal, Empty, Button, Table, Tag, message } from 'antd'
 import { LeftOutlined, RightOutlined, SyncOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { getDailySnapshots, autoUpdatePrices } from '../../../api/finance'
+import { getDailySnapshots } from '../../../api/finance'
 import { formatMoney, plColor, formatPct } from '../constants'
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
 
-export default function InvestmentCalendar({ refreshKey, hidden }) {
+export default function InvestmentCalendar({ refreshKey, hidden, onSync }) {
   const [currentMonth, setCurrentMonth] = useState(dayjs())
   const [snapshots, setSnapshots] = useState([])
   const [dailySummary, setDailySummary] = useState({})
@@ -57,18 +57,14 @@ export default function InvestmentCalendar({ refreshKey, hidden }) {
   const goToday = () => setCurrentMonth(dayjs())
 
   const handleSync = async () => {
-    setSyncing(true)
-    try {
-      const res = await autoUpdatePrices()
-      message.success(res.detail || '数据同步成功')
-      if (res.failed_symbols?.length > 0) {
-        message.warning(`${res.failed_symbols.length} 个持仓获取失败: ${res.failed_symbols.join(', ')}`)
+    if (onSync) {
+      setSyncing(true)
+      try {
+        await onSync()
+        loadMonthData()
+      } finally {
+        setSyncing(false)
       }
-      loadMonthData()
-    } catch (err) {
-      message.error(err.response?.data?.detail || '同步失败')
-    } finally {
-      setSyncing(false)
     }
   }
 

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Card, Calendar, Modal, List, Tag, Typography, Empty, Button } from 'antd'
+import { useState, useEffect, useRef } from 'react'
+import { Card, Modal, List, Tag, Typography, Empty, Button } from 'antd'
 import { LeftOutlined, RightOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { getDailySummary, getTransactions } from '../../api/finance'
@@ -17,14 +17,21 @@ export default function CalendarView() {
   const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
 
-  useEffect(() => { loadMonthData() }, [currentMonth])
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    loadMonthData()
+    return () => { mountedRef.current = false }
+  }, [currentMonth])
 
   const loadMonthData = async () => {
     setLoading(true)
     try {
       const data = await getDailySummary({ year: currentMonth.year(), month: currentMonth.month() + 1 })
-      setDailySummary(data)
-    } catch (e) { console.error(e) } finally { setLoading(false) }
+      if (mountedRef.current) setDailySummary(data)
+    } catch (e) { console.error(e) } finally {
+      if (mountedRef.current) setLoading(false)
+    }
   }
 
   const summaryMap = {}
@@ -35,7 +42,7 @@ export default function CalendarView() {
     setSelectedDate(dateStr)
     setDaySummary(summaryMap[dateStr] || null)
     try {
-      const data = await getTransactions({ date: dateStr })
+      const data = await getTransactions({ date: dateStr, page_size: 999 })
       setDayTransactions(data.results || data)
       setModalOpen(true)
     } catch (e) { console.error(e) }

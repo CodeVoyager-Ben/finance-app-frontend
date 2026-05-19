@@ -4,6 +4,7 @@ import { Form, Input, Button, Card, Tabs, message, Typography, Progress } from '
 import { UserOutlined, LockOutlined, MailOutlined, PhoneOutlined, WalletOutlined, CheckCircleFilled, CloseCircleFilled } from '@ant-design/icons'
 import { login, register } from '../api/auth'
 import useAuthStore from '../store/authStore'
+// 注意: useAuthStore 只用于 getState().fetchUser(), 不需要 Hook 形式
 
 const { Title, Text } = Typography
 
@@ -42,7 +43,6 @@ export default function Login() {
   const [activeTab, setActiveTab] = useState('login')
   const [passwordVal, setPasswordVal] = useState('')
   const navigate = useNavigate()
-  const { setUser } = useAuthStore()
   const [form] = Form.useForm()
 
   const strength = useMemo(() => getPasswordStrength(passwordVal), [passwordVal])
@@ -71,8 +71,10 @@ export default function Login() {
     }
     setLoading(true)
     try {
-      await register(values)
+      const { confirmPassword, ...payload } = values
+      await register(payload)
       message.success('注册成功，请登录')
+      form.resetFields()
       setActiveTab('login')
       setPasswordVal('')
     } catch {

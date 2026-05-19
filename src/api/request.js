@@ -19,14 +19,17 @@ request.interceptors.request.use((config) => {
 let isRefreshing = false
 let pendingRequests = []
 
-const onRefreshed = (newToken) => {
-  pendingRequests.forEach(cb => cb(newToken))
+const resolveAll = (newToken) => {
+  pendingRequests.forEach(({ resolve, config }) => {
+    config.headers.Authorization = `Bearer ${newToken}`
+    resolve(request(config))
+  })
   pendingRequests = []
 }
 
-const addPendingRequest = (cb) => {
-  pendingRequests.push(cb)
-  return cb
+const rejectAll = (error) => {
+  pendingRequests.forEach(({ reject }) => reject(error))
+  pendingRequests = []
 }
 
 // Handle auth failure - logout via store and redirect to login
@@ -60,11 +63,8 @@ request.interceptors.response.use(
 
       // Another request is already refreshing - queue up
       if (isRefreshing) {
-        return new Promise((resolve) => {
-          addPendingRequest((newToken) => {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`
-            resolve(request(originalRequest))
-          })
+        return new Promise((resolve, reject) => {
+          pendingRequests.push({ resolve, reject, config: originalRequest })
         })
       }
 
@@ -82,13 +82,12 @@ request.interceptors.response.use(
           if (res.data.refresh) {
             localStorage.setItem('refresh_token', res.data.refresh)
           }
-          onRefreshed(newAccessToken)
+          resolveAll(newAccessToken)
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
           return request(originalRequest)
         }
       } catch (refreshError) {
-        pendingRequests.forEach(cb => cb(null))
-        pendingRequests = []
+        rejectAll(refreshError)
         await handleAuthFailure()
         return Promise.reject(refreshError)
       } finally {

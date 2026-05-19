@@ -14,6 +14,7 @@ export default function PrivacyToggle({ pageKey }) {
         icon={hidden ? <EyeInvisibleOutlined /> : <EyeOutlined />}
         onClick={() => toggle(pageKey)}
         style={{ fontSize: 18, color: hidden ? '#faad14' : undefined }}
+        aria-label={hidden ? '显示金额' : '隐藏金额'}
       />
     </Tooltip>
   )

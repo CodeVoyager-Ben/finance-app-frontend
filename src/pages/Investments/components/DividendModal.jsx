@@ -1,4 +1,5 @@
 import { Modal, Form, Select, InputNumber, DatePicker, Input } from 'antd'
+import { useEffect } from 'react'
 import dayjs from 'dayjs'
 
 export default function DividendModal({ open, onCancel, onOk, accounts, holdings, loading }) {
@@ -9,10 +10,27 @@ export default function DividendModal({ open, onCancel, onOk, accounts, holdings
   const perUnit = Form.useWatch('dividend_per_unit', form)
   const qty = Form.useWatch('quantity', form)
   const tax = Form.useWatch('tax', form)
+  const totalAmount = Form.useWatch('total_amount', form)
 
   const filteredHoldings = selectedAccount
     ? holdings.filter(h => h.investment_account === selectedAccount)
     : holdings
+
+  // 自动计算 total_amount 和 net_amount
+  useEffect(() => {
+    if (perUnit && qty && Number(perUnit) > 0 && Number(qty) > 0) {
+      const total = Number(perUnit) * Number(qty)
+      form.setFieldsValue({ total_amount: Math.round(total * 100) / 100 })
+    }
+  }, [perUnit, qty, form])
+
+  useEffect(() => {
+    if (totalAmount && Number(totalAmount) > 0) {
+      const taxVal = Number(tax || 0)
+      const net = Number(totalAmount) - taxVal
+      form.setFieldsValue({ net_amount: Math.round(net * 100) / 100 })
+    }
+  }, [totalAmount, tax, form])
 
   const handleHoldingSelect = (holdingId) => {
     const h = holdings.find(x => x.id === holdingId)

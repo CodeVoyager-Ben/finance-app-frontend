@@ -45,10 +45,12 @@ export const DIVIDEND_TYPES = {
 export function formatMoney(value, currency = 'CNY') {
   if (value === null || value === undefined) return '0.00'
   const num = Number(value)
+  // JPY 等无小数货币
+  const decimals = ['JPY', 'KRW'].includes(currency) ? 0 : 2
   if (Math.abs(num) >= 10000) {
-    return `${(num / 10000).toFixed(2)}万`
+    return `${(num / 10000).toFixed(decimals)}万`
   }
-  return num.toFixed(2)
+  return num.toFixed(decimals)
 }
 
 // 盈亏颜色
@@ -64,20 +66,44 @@ export function formatPct(value) {
   return `${Number(value).toFixed(2)}%`
 }
 
-// 券商标准费率
+// 券商标准费率（按市场区分）
 export const FEE_RATES = {
+  // A股
   commission_rate: 0.00025,   // 0.025% (万2.5)
   commission_min: 5,          // 最低 5 元
   stamp_duty_rate: 0.0005,    // 0.05% 卖出印花税
   transfer_fee_rate: 0.00001, // 0.001% 过户费
 }
 
+// 港股费率
+export const HK_FEE_RATES = {
+  commission_rate: 0.0003,
+  commission_min: 3,
+  stamp_duty_rate: 0.001,     // 0.1%
+  transfer_fee_rate: 0,
+}
+
+// 美股费率
+export const US_FEE_RATES = {
+  commission_rate: 0.005,     // 每股 $0.005
+  commission_min: 1,
+  stamp_duty_rate: 0,
+  transfer_fee_rate: 0,
+}
+
+export function getFeeRates(currency) {
+  if (currency === 'HKD') return HK_FEE_RATES
+  if (currency === 'USD') return US_FEE_RATES
+  return FEE_RATES
+}
+
 // 计算卖出预估费用
-export function calculateSellFees(price, quantity) {
+export function calculateSellFees(price, quantity, currency = 'CNY') {
+  const rates = getFeeRates(currency)
   const amount = Number(price) * Number(quantity)
-  const commission = Math.max(amount * FEE_RATES.commission_rate, FEE_RATES.commission_min)
-  const stamp_duty = amount * FEE_RATES.stamp_duty_rate
-  const transfer_fee = amount * FEE_RATES.transfer_fee_rate
+  const commission = Math.max(amount * rates.commission_rate, rates.commission_min)
+  const stamp_duty = amount * rates.stamp_duty_rate
+  const transfer_fee = amount * rates.transfer_fee_rate
   const total = commission + stamp_duty + transfer_fee
   return {
     trade_amount: amount,

@@ -110,9 +110,13 @@ export default function Settings() {
   }
 
   const handleDeleteAccount = async (id) => {
-    await deleteAccount(id)
-    message.success('删除成功')
-    loadData()
+    try {
+      await deleteAccount(id)
+      message.success('删除成功')
+      loadData()
+    } catch {
+      message.error('删除失败')
+    }
   }
 
   // Category CRUD
@@ -143,9 +147,13 @@ export default function Settings() {
   }
 
   const handleDeleteCategory = async (id) => {
-    await deleteCategory(id)
-    message.success('删除成功')
-    loadData()
+    try {
+      await deleteCategory(id)
+      message.success('删除成功')
+      loadData()
+    } catch {
+      message.error('删除失败')
+    }
   }
 
   const allCategories = categories.flatMap(c => [c, ...(c.children || [])])
@@ -347,7 +355,7 @@ export default function Settings() {
                         <Popconfirm
                           title="删除确认"
                           description={`确定删除「${record.category_name}」的预算吗？`}
-                          onConfirm={async () => { await deleteBudget(record.id); message.success('删除成功'); loadData() }}
+                          onConfirm={async () => { try { await deleteBudget(record.id); message.success('删除成功'); loadData() } catch { message.error('删除失败') } }}
                           okText="确认删除"
                           cancelText="取消"
                           okButtonProps={{ danger: true }}
@@ -447,7 +455,7 @@ export default function Settings() {
           <Form.Item name="category" label="分类（留空为总预算）">
             <Select allowClear placeholder="留空 = 总预算"
               options={categories.filter(c => !c.parent && c.category_type === 'expense').map(c => ({
-                label: `${c.icon} ${c.name}`, value: c.id,
+                label: `${c.category_icon || c.icon} ${c.category_name || c.name}`, value: c.id,
               }))}
             />
           </Form.Item>

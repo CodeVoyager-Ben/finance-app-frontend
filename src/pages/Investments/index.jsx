@@ -300,7 +300,7 @@ export default function Investments() {
     {
       key: 'calendar',
       label: '日历',
-      children: <InvestmentCalendar refreshKey={calendarRefreshKey} hidden={hidden} />,
+      children: <InvestmentCalendar refreshKey={calendarRefreshKey} hidden={hidden} onSync={handleAutoUpdatePrices} />,
     },
   ]
 

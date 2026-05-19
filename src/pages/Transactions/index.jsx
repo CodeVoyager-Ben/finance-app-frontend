@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Card, Button, Table, Modal, Form, Input, Select, DatePicker, InputNumber,
   Tag, Space, Row, Col, message, Popconfirm, Typography, Segmented,
@@ -63,8 +63,6 @@ export default function Transactions() {
     const params = { page }
     if (typeFilter !== 'all') {
       if (typeFilter === 'credit_card') {
-        // 还信用卡在后端是 transfer + to_account 为信用卡
-        // 前端筛选不够精确，取 transfer 然后客户端再过滤
         params.transaction_type = 'transfer'
       } else {
         params.transaction_type = typeFilter
@@ -86,24 +84,26 @@ export default function Transactions() {
     return params
   }, [typeFilter, filterAccount, filterCategory, filterDateMode, filterDateValue, filterSearch])
 
-  useEffect(() => { loadData() }, [typeFilter, filterAccount, filterCategory, filterDateMode, filterDateValue])
+  // 独立加载账户和分类数据
+  useEffect(() => {
+    Promise.all([getAccounts(), getCategories()]).then(([a, c]) => {
+      const accs = a.results || a
+      const cats = c.results || c
+      setAccounts(accs)
+      setCategories(cats)
+      if (!selectedAccount && accs.length > 0) {
+        setSelectedAccount(accs[0].id)
+      }
+    }).catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const loadData = async (page = 1) => {
+  const paginationRef = useRef(pagination)
+  paginationRef.current = pagination
+
+  const loadData = useCallback(async (page = 1) => {
     setLoading(true)
     try {
-      // Load accounts & categories if not yet loaded
-      let accs = accounts, cats = categories
-      if (accs.length === 0 || cats.length === 0) {
-        const [a, c] = await Promise.all([getAccounts(), getCategories()])
-        accs = a.results || a
-        cats = c.results || c
-        setAccounts(accs)
-        setCategories(cats)
-        if (!selectedAccount && accs.length > 0) {
-          setSelectedAccount(accs[0].id)
-        }
-      }
-
       const params = buildFilterParams(page)
       const { page: _, ...summaryParams } = params
       const [trans, summaryRes] = await Promise.all([
@@ -115,14 +115,14 @@ export default function Transactions() {
       // Client-side filter for credit_card (transfer to credit card account)
       let filtered = results
       if (typeFilter === 'credit_card') {
-        filtered = results.filter(t => t.transaction_type === 'transfer' && t.to_account_name)
+        filtered = results.filter(t => t.transaction_type === 'transfer' && t.to_account_type === 'credit_card')
       }
 
       setData(filtered)
       setPagination(p => ({
         ...p,
         current: page,
-        total: trans.count || results.length,
+        total: typeFilter === 'credit_card' ? filtered.length : (trans.count || results.length),
       }))
 
       setSummary({
@@ -135,7 +135,9 @@ export default function Transactions() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [buildFilterParams, typeFilter])
+
+  useEffect(() => { loadData() }, [loadData])
 
   // Reset filters
   const resetFilters = () => {
@@ -170,7 +172,7 @@ export default function Transactions() {
         transaction_type: isCreditCard ? 'transfer' : entryType,
         amount: parseFloat(amount),
         account: selectedAccount,
-        to_account: isCreditCard || entryType === 'transfer' ? toAccount : undefined,
+        to_account: isCreditCard || entryType === 'transfer' ? toAccount : null,
         category: isCreditCard ? (creditCardCat?.id || selectedCategory) : selectedCategory,
         note: note || (isCreditCard ? '信用卡还款' : ''),
         date: entryDate.format('YYYY-MM-DD'),
@@ -181,8 +183,10 @@ export default function Transactions() {
       setNote('')
       setSelectedCategory(null)
       setToAccount(null)
-      loadData(pagination.current)
-    } catch {}
+      loadData(paginationRef.current.current)
+    } catch {
+      message.error('记账失败')
+    }
   }
 
   const handleEdit = async () => {
@@ -194,7 +198,7 @@ export default function Transactions() {
         transaction_type: isCreditCard ? 'transfer' : entryType,
         amount: parseFloat(amount),
         account: selectedAccount,
-        to_account: isCreditCard || entryType === 'transfer' ? toAccount : undefined,
+        to_account: isCreditCard || entryType === 'transfer' ? toAccount : null,
         category: isCreditCard ? (creditCardCat?.id || selectedCategory) : selectedCategory,
         note,
         date: entryDate.format('YYYY-MM-DD'),
@@ -203,8 +207,10 @@ export default function Transactions() {
       setDrawerOpen(false)
       setEditing(null)
       resetForm()
-      loadData(pagination.current)
-    } catch {}
+      loadData(paginationRef.current.current)
+    } catch {
+      message.error('修改失败')
+    }
   }
 
   const resetForm = () => {
@@ -240,7 +246,7 @@ export default function Transactions() {
     try {
       await deleteTransaction(id)
       message.success('删除成功')
-      loadData(pagination.current)
+      loadData(paginationRef.current.current)
     } catch {
       message.error('删除失败')
     }
@@ -287,7 +293,7 @@ export default function Transactions() {
     {
       title: '分类', key: 'cat', width: 90,
       render: (_, r) => {
-        const isCCRepay = r.transaction_type === 'transfer' && r.to_account_name
+        const isCCRepay = r.transaction_type === 'transfer' && r.to_account_type === 'credit_card'
         if (isCCRepay && !r.category_name) {
           return <span><span style={{ marginRight: 4 }}>💳</span>还信用卡</span>
         }
@@ -302,7 +308,7 @@ export default function Transactions() {
     {
       title: '类型', dataIndex: 'transaction_type', key: 'type', width: 85,
       render: (t, r) => {
-        const isCCRepay = t === 'transfer' && r.to_account_name
+        const isCCRepay = t === 'transfer' && r.to_account_type === 'credit_card'
         return <Tag color={t === 'income' ? 'green' : t === 'expense' ? 'red' : isCCRepay ? 'purple' : 'blue'}>
           {t === 'income' ? '收入' : t === 'expense' ? '支出' : isCCRepay ? '还信用卡' : '转账'}
         </Tag>
@@ -318,7 +324,7 @@ export default function Transactions() {
       title: '金额', dataIndex: 'amount', key: 'amount', width: 110, align: 'right',
       sorter: (a, b) => parseFloat(a.amount) - parseFloat(b.amount),
       render: (v, r) => {
-        const isCCRepay = r.transaction_type === 'transfer' && r.to_account_name
+        const isCCRepay = r.transaction_type === 'transfer' && r.to_account_type === 'credit_card'
         return (
           <span style={{
             color: r.transaction_type === 'income' ? '#52c41a' : r.transaction_type === 'expense' ? '#ff4d4f' : isCCRepay ? '#722ed1' : '#1677ff',
@@ -338,7 +344,7 @@ export default function Transactions() {
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} />
           <Popconfirm
             title="删除确认"
-            description={`确定删除这笔 ¥${parseFloat(record.amount).toFixed(2)} 的${record.transaction_type === 'income' ? '收入' : '支出'}记录吗？删除后不可恢复。`}
+            description={`确定删除这笔 ¥${parseFloat(record.amount).toFixed(2)} 的${record.transaction_type === 'income' ? '收入' : record.transaction_type === 'expense' ? '支出' : '转账'}记录吗？删除后不可恢复。`}
             onConfirm={() => handleDelete(record.id)}
             okText="确认删除"
             cancelText="取消"

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Modal, Form, Input, Select, InputNumber, DatePicker, AutoComplete, Space, Typography } from 'antd'
 import dayjs from 'dayjs'
-import { TRANSACTION_TYPES, FEE_RATES } from '../constants'
+import { TRANSACTION_TYPES, getFeeRates } from '../constants'
 import { searchSecurity } from '../../../api/finance'
 
 const { Text } = Typography
@@ -9,21 +9,23 @@ const { Text } = Typography
 const TRADE_TYPES = ['buy', 'sell', 'dividend', 'interest', 'deposit', 'withdraw', 'fee']
 
 // 按券商标准费率自动计算买入手续费
-function calcBuyFees(qty, price) {
+function calcBuyFees(qty, price, currency = 'CNY') {
   if (!qty || !price || qty <= 0 || price <= 0) return 0
+  const rates = getFeeRates(currency)
   const amount = qty * price
-  const commission = Math.max(amount * FEE_RATES.commission_rate, FEE_RATES.commission_min)
-  const transferFee = amount * FEE_RATES.transfer_fee_rate
+  const commission = Math.max(amount * rates.commission_rate, rates.commission_min)
+  const transferFee = amount * rates.transfer_fee_rate
   return Math.round((commission + transferFee) * 100) / 100
 }
 
 // 按券商标准费率自动计算卖出手续费
-function calcSellFees(qty, price) {
+function calcSellFees(qty, price, currency = 'CNY') {
   if (!qty || !price || qty <= 0 || price <= 0) return 0
+  const rates = getFeeRates(currency)
   const amount = qty * price
-  const commission = Math.max(amount * FEE_RATES.commission_rate, FEE_RATES.commission_min)
-  const stampDuty = amount * FEE_RATES.stamp_duty_rate
-  const transferFee = amount * FEE_RATES.transfer_fee_rate
+  const commission = Math.max(amount * rates.commission_rate, rates.commission_min)
+  const stampDuty = amount * rates.stamp_duty_rate
+  const transferFee = amount * rates.transfer_fee_rate
   return Math.round((commission + stampDuty + transferFee) * 100) / 100
 }
 
@@ -96,11 +98,13 @@ export default function TradeModal({ open, onCancel, onOk, accounts, holdings, l
     if (!needPriceFields) return
     const qty = Number(watchQuantity) || 0
     const price = Number(watchPrice) || 0
+    const acct = accounts.find(a => a.id === selectedAccount)
+    const currency = acct?.currency || 'CNY'
     if (qty > 0 && price > 0) {
-      const fee = isSell ? calcSellFees(qty, price) : calcBuyFees(qty, price)
+      const fee = isSell ? calcSellFees(qty, price, currency) : calcBuyFees(qty, price, currency)
       form.setFieldsValue({ fee })
     }
-  }, [watchQuantity, watchPrice, needPriceFields, isSell, isBuy, form])
+  }, [watchQuantity, watchPrice, needPriceFields, isSell, isBuy, form, selectedAccount, accounts])
 
   // 卖出时自动计算盈亏
   useEffect(() => {
@@ -140,7 +144,7 @@ export default function TradeModal({ open, onCancel, onOk, accounts, holdings, l
     >
       <Form form={form} layout="vertical" initialValues={{ transaction_type: 'buy', date: dayjs(), fee: 0, profit_loss: 0 }}>
         <Form.Item name="investment_account" label="投资账户" rules={[{ required: true, message: '请选择账户' }]}>
-          <Select placeholder="选择账户">
+          <Select placeholder="选择账户" onChange={() => form.setFieldsValue({ holding: undefined, symbol: undefined, name: undefined })}>
             {accounts.map(a => (
               <Select.Option key={a.id} value={a.id}>{a.name}</Select.Option>
             ))}
