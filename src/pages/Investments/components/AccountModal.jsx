@@ -61,7 +61,8 @@ export default function AccountModal({ open, onCancel, onOk, assetTypes, fundAcc
         <Form.Item name="broker" label="券商/平台">
           <Input placeholder="如：华泰证券" />
         </Form.Item>
-        <Form.Item name="balance" label="初始余额" initialValue={0}>
+        <Form.Item name="balance" label={isEdit ? '账户余额' : '初始余额'} initialValue={0}
+          help={isEdit ? '修改余额会自动生成一笔调整流水，用于补记未及时入账的资金变动' : undefined}>
           <InputNumber style={{ width: '100%' }} min={0} precision={2} />
         </Form.Item>
         <Form.Item name="initial_investment" label="初始投入金额" initialValue={0}>

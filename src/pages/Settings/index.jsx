@@ -390,7 +390,8 @@ export default function Settings() {
           <Form.Item name="account_type" label="账户类型" rules={[{ required: true }]}>
             <Select options={ACCOUNT_TYPES} />
           </Form.Item>
-          <Form.Item name="balance" label={editingAccount ? '余额' : '初始余额'}>
+          <Form.Item name="balance" label={editingAccount ? '余额' : '初始余额'}
+            help={editingAccount ? '修改余额会自动生成一笔调整流水，用于补记未及时入账的资金变动' : undefined}>
             <InputNumber prefix="¥" style={{ width: '100%' }} precision={2} />
           </Form.Item>
           <Form.Item name="icon" label="图标">
